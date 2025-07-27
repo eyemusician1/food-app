@@ -35,6 +35,9 @@ export default function Index() {
                 {({pressed}) => ( 
                     <Fragment>
                       <View className="h-full w-1/2">
+
+                      {/* CHANGE THE IMAGES OF THE PRODUCT START FROM HERE */}
+
                         <Image source={item.image} className={"size-full"} resizeMode={"contain"} />
                       </View>
 
