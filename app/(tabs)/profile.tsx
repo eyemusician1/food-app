@@ -1,13 +1,20 @@
 import CustomButton from "@/components/CustomButton";
+import CustomInput from "@/components/CustomInput";
 import { images } from "@/constants";
-import { signOut } from "@/lib/appwrite";
+import { signOut, updateUser } from "@/lib/appwrite";
 import useAuthStore from "@/store/auth.store";
 import { router } from "expo-router";
-import { Alert, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { useState } from "react";
+import { Alert, Image, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const ProfileField = ({ icon, label, value }: { icon: any; label: string; value: string }) => (
-    <View className="profile-field">
+const ProfileField = ({ icon, label, value, onEdit }: { 
+    icon: any; 
+    label: string; 
+    value: string;
+    onEdit?: () => void;
+}) => (
+    <TouchableOpacity className="profile-field" onPress={onEdit} activeOpacity={onEdit ? 0.7 : 1}>
         <View className="profile-field__icon">
             <Image source={icon} className="size-6" resizeMode="contain" tintColor="#FE8C00" />
         </View>
@@ -15,7 +22,10 @@ const ProfileField = ({ icon, label, value }: { icon: any; label: string; value:
             <Text className="body-medium text-gray-200 mb-1">{label}</Text>
             <Text className="paragraph-bold text-dark-100">{value}</Text>
         </View>
-    </View>
+        {onEdit && (
+            <Image source={images.pencil} className="size-4" resizeMode="contain" tintColor="#878787" />
+        )}
+    </TouchableOpacity>
 );
 
 const MenuOption = ({ icon, title, onPress, showArrow = true }: { 
@@ -41,8 +51,96 @@ const MenuOption = ({ icon, title, onPress, showArrow = true }: {
     </TouchableOpacity>
 );
 
+const EditProfileModal = ({ 
+    visible, 
+    onClose, 
+    user, 
+    onSave 
+}: { 
+    visible: boolean; 
+    onClose: () => void; 
+    user: any;
+    onSave: (data: { name: string; email: string }) => void;
+}) => {
+    const [form, setForm] = useState({
+        name: user?.name || '',
+        email: user?.email || ''
+    });
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleSave = async () => {
+        if (!form.name.trim() || !form.email.trim()) {
+            Alert.alert('Error', 'Please fill in all fields');
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            await onSave(form);
+            onClose();
+        } catch (error) {
+            // Error handling is done in parent component
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <Modal
+            visible={visible}
+            animationType="slide"
+            presentationStyle="pageSheet"
+            onRequestClose={onClose}
+        >
+            <SafeAreaView className="flex-1 bg-white">
+                <View className="flex-1 px-5">
+                    {/* Header */}
+                    <View className="flex-row items-center justify-between py-4 border-b border-gray-200">
+                        <TouchableOpacity onPress={onClose}>
+                            <Text className="paragraph-semibold text-gray-200">Cancel</Text>
+                        </TouchableOpacity>
+                        <Text className="base-bold text-dark-100">Edit Profile</Text>
+                        <TouchableOpacity onPress={handleSave} disabled={isLoading}>
+                            <Text className="paragraph-semibold text-primary">Save</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Form */}
+                    <View className="flex-1 pt-8">
+                        <View className="mb-6">
+                            <CustomInput
+                                label="Full Name"
+                                placeholder="Enter your full name"
+                                value={form.name}
+                                onChangeText={(text) => setForm(prev => ({ ...prev, name: text }))}
+                            />
+                        </View>
+
+                        <View className="mb-6">
+                            <CustomInput
+                                label="Email Address"
+                                placeholder="Enter your email"
+                                value={form.email}
+                                onChangeText={(text) => setForm(prev => ({ ...prev, email: text }))}
+                                keyboardType="email-address"
+                            />
+                        </View>
+
+                        <CustomButton
+                            title="Save Changes"
+                            onPress={handleSave}
+                            isLoading={isLoading}
+                        />
+                    </View>
+                </View>
+            </SafeAreaView>
+        </Modal>
+    );
+};
+
 const Profile = () => {
     const { user, setIsAuthenticated, setUser } = useAuthStore();
+    const [editModalVisible, setEditModalVisible] = useState(false);
 
     const handleSignOut = async () => {
         Alert.alert(
@@ -66,6 +164,23 @@ const Profile = () => {
                 }
             ]
         );
+    };
+
+    const handleEditProfile = () => {
+        setEditModalVisible(true);
+    };
+
+    const handleSaveProfile = async (data: { name: string; email: string }) => {
+        if (!user) return;
+
+        try {
+            const updatedUser = await updateUser(user.$id, data);
+            setUser(updatedUser);
+            Alert.alert('Success', 'Profile updated successfully!');
+        } catch (error: any) {
+            Alert.alert('Error', error.message);
+            throw error; // Re-throw to handle loading state in modal
+        }
     };
 
     if (!user) {
@@ -98,7 +213,7 @@ const Profile = () => {
                                 className="size-full rounded-full"
                                 resizeMode="cover"
                             />
-                            <TouchableOpacity className="profile-edit">
+                            <TouchableOpacity className="profile-edit" onPress={handleEditProfile}>
                                 <Image 
                                     source={images.pencil} 
                                     className="size-3" 
@@ -120,16 +235,19 @@ const Profile = () => {
                             icon={images.user}
                             label="Full Name"
                             value={user.name}
+                            onEdit={handleEditProfile}
                         />
                         <ProfileField 
                             icon={images.envelope}
                             label="Email Address"
                             value={user.email}
+                            onEdit={handleEditProfile}
                         />
                         <ProfileField 
                             icon={images.phone}
                             label="Phone Number"
                             value="+1 (555) 123-4567"
+                            onEdit={() => Alert.alert('Coming Soon', 'Phone number editing will be available soon!')}
                         />
                         <View className="profile-field border-b-0">
                             <View className="profile-field__icon">
@@ -139,6 +257,9 @@ const Profile = () => {
                                 <Text className="body-medium text-gray-200 mb-1">Address</Text>
                                 <Text className="paragraph-bold text-dark-100">MSU Marawi, Lanao del Sur</Text>
                             </View>
+                            <TouchableOpacity onPress={() => Alert.alert('Coming Soon', 'Address editing will be available soon!')}>
+                                <Image source={images.pencil} className="size-4" resizeMode="contain" tintColor="#878787" />
+                            </TouchableOpacity>
                         </View>
                     </View>
 
@@ -177,6 +298,14 @@ const Profile = () => {
                     />
                 </View>
             </ScrollView>
+
+            {/* Edit Profile Modal */}
+            <EditProfileModal
+                visible={editModalVisible}
+                onClose={() => setEditModalVisible(false)}
+                user={user}
+                onSave={handleSaveProfile}
+            />
         </SafeAreaView>
     );
 };
