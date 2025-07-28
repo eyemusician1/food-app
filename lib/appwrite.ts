@@ -147,3 +147,17 @@ export const updateUser = async (userId: string, data: { name?: string; email?: 
         throw new Error(e as string);
     }
 }
+
+export const updateUser = async (userId: string, data: { name?: string; email?: string }) => {
+    try {
+        const updatedUser = await databases.updateDocument(
+            appwriteConfig.databaseId,
+            appwriteConfig.userCollectionId,
+            userId,
+            data
+        );
+        return updatedUser;
+    } catch (e) {
+        throw new Error(e as string);
+    }
+}
